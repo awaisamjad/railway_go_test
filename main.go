@@ -24,7 +24,7 @@ func initDatabase() error {
 }
 func main() {
 	// Replace with your actual Railway database credentials
-	dsn := "awaisamjad:Gunner$123@tcp(127.0.0.1:3306)/whisp_db"
+	dsn := "awaisamjad:Gunner$123@tcp(mariadb.railway.internal:3306)/whisp_db"
 	var err error
 
 	// Open the database connection
