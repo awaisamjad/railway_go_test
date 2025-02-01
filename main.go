@@ -14,7 +14,8 @@ var db *sql.DB
 // Initialize the SQLite database connection
 func initDB() {
 	var err error
-	db, err = sql.Open("sqlite3", "./database.db")
+	// Use the correct dialect 'sqlite' instead of 'sqlite3' with the go-sqlite driver
+	db, err = sql.Open("sqlite", "./database.db")
 	if err != nil {
 		log.Fatal(err)
 	}
