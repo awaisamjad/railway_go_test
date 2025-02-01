@@ -2,99 +2,95 @@ package main
 
 import (
 	"database/sql"
-	"fmt"
 	"log"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	_ "github.com/go-sql-driver/mysql"
+	_ "github.com/mattn/go-sqlite3"
 )
 
 var db *sql.DB
 
-func initDatabase() error {
-	query := `
-	CREATE TABLE IF NOT EXISTS posts (
-		id INT AUTO_INCREMENT PRIMARY KEY,
-		content TEXT NOT NULL,
-		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-	)`
-	_, err := db.Exec(query)
-	return err
-}
-func main() {
-	// Replace with your actual Railway database credentials
-	dsn := "awaisamjad:Gunner$123@tcp(mariadb.railway.internal:3306)/whisp_db"
+// Initialize the SQLite database connection
+func initDB() {
 	var err error
-
-	// Open the database connection
-	db, err = sql.Open("mysql", dsn)
+	db, err = sql.Open("sqlite3", "./database.db")
 	if err != nil {
-		log.Fatalf("Error connecting to database: %v", err)
+		log.Fatal(err)
 	}
 
-	// Test the connection
-	err = db.Ping()
+	// Create the users table if it doesn't exist
+	query := `
+	CREATE TABLE IF NOT EXISTS users (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		name TEXT NOT NULL
+	);
+	`
+	_, err = db.Exec(query)
 	if err != nil {
-		log.Fatalf("Error pinging database: %v", err)
+		log.Fatal(err)
 	}
-	fmt.Println("Connected to MariaDB!")
-	
-	err = initDatabase()
-	if err != nil {
-		log.Fatalf("Error init database : %v", err)
-	}
-
-	// Initialize the Gin router
-	router := gin.Default()
-
-	// Route to display all posts
-	router.GET("/", func(c *gin.Context) {
-		posts, err := fetchPosts()
-		if err != nil {
-			c.String(http.StatusInternalServerError, "Error fetching posts: %v", err)
-			return
-		}
-		c.JSON(http.StatusOK, posts)
-	})
-
-	// Route to add a new post
-	router.GET("/add-post", func(c *gin.Context) {
-		err := addPost("This is a new post!")
-		if err != nil {
-			c.String(http.StatusInternalServerError, "Error adding post: %v", err)
-			return
-		}
-		c.Redirect(http.StatusFound, "/")
-	})
-
-	// Start the server
-	router.Run(":8080")
-	log.Println("Running on http://localhost:8080")
 }
 
-// Function to fetch posts from the database
-func fetchPosts() ([]string, error) {
-	rows, err := db.Query("SELECT content FROM posts")
+// Route handler to add a user to the database
+func addUser(ctx *gin.Context) {
+	// Hardcoded user data to be added
+	name := "John Doe"
+
+	// Insert the user into the database
+	query := "INSERT INTO users (name) VALUES (?)"
+	_, err := db.Exec(query, name)
 	if err != nil {
-		return nil, err
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to add user"})
+		return
+	}
+
+	// Redirect back to the home route after adding the user
+	ctx.Redirect(http.StatusFound, "/")
+}
+
+// Route handler to fetch and display all users
+func getUsers(ctx *gin.Context) {
+	rows, err := db.Query("SELECT id, name FROM users")
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch users"})
+		return
 	}
 	defer rows.Close()
 
-	var posts []string
+	var users []gin.H
+
+	// Iterate over rows and append them to the users slice
 	for rows.Next() {
-		var content string
-		if err := rows.Scan(&content); err != nil {
-			return nil, err
+		var id int
+		var name string
+		if err := rows.Scan(&id, &name); err != nil {
+			ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to scan row"})
+			return
 		}
-		posts = append(posts, content)
+		users = append(users, gin.H{"id": id, "name": name})
 	}
-	return posts, nil
+
+	// Display the users as JSON
+	ctx.JSON(http.StatusOK, gin.H{
+		"users": users,
+	})
 }
 
-// Function to add a new post to the database
-func addPost(content string) error {
-	_, err := db.Exec("INSERT INTO posts (content) VALUES (?)", content)
-	return err
+func main() {
+	// Initialize the database
+	initDB()
+
+	// Create a new Gin router
+	r := gin.Default()
+
+	// Define the home route
+	r.GET("/", getUsers)
+
+	// Define the route for adding a user
+	r.GET("/add", addUser)
+
+	// Start the server
+	r.Run(":8080")
 }
 
